@@ -12,14 +12,14 @@ function generateProfile(d4, e, P = 4, step = 0.01) {
   return points
 }
 
-function computeCotes(d4, e, P = 4) {
-  const pts = generateProfile(d4, e, P, 0.1)
+function computeCotes(d4, e, P = 4, step = 0.01) {
+  const pts = generateProfile(d4, e, P, step)
   const rs = pts.map(({ x, y }) => Math.sqrt(x * x + y * y))
   return {
     Rm: (d4 / 2).toFixed(4),
     dMini: (Math.min(...rs) * 2).toFixed(4),
     dMaxi: (Math.max(...rs) * 2).toFixed(4),
-    nbPoints: Math.round(360 / 0.01) + 1,
+    nbPoints: pts.length,
   }
 }
 
@@ -105,20 +105,22 @@ const S = {
 
 export default function App() {
   const [d4,setD4]=useState(''), [e,setE]=useState(''), [prof,setProf]=useState('')
-  const [lobes,setLobes]=useState('4'), [result,setResult]=useState(null)
-  const [points,setPoints]=useState([]), [error,setError]=useState('')
+  const [lobes,setLobes]=useState('4'), [pas,setPas]=useState('0.01')
+  const [result,setResult]=useState(null), [points,setPoints]=useState([]), [error,setError]=useState('')
   const canvasRef=useRef(null)
 
   useEffect(()=>{ if(result&&points.length&&canvasRef.current) drawCanvas(canvasRef.current,points,d4,e,result) },[result,points])
 
   function handleCalculate() {
     setError('')
-    const d4v=parseFloat(d4),ev=parseFloat(e),pv=parseInt(lobes),profv=parseFloat(prof)
-    if(isNaN(d4v)||isNaN(ev)||isNaN(pv)||isNaN(profv)){setError('Veuillez remplir tous les champs.');return}
+    const d4v=parseFloat(d4), ev=parseFloat(e), pv=parseInt(lobes), profv=parseFloat(prof), pasv=parseFloat(pas)
+    if(isNaN(d4v)||isNaN(ev)||isNaN(pv)||isNaN(profv)||isNaN(pasv)){setError('Veuillez remplir tous les champs.');return}
     if(d4v<=0||ev<=0||profv<=0){setError('Toutes les valeurs doivent être supérieures à 0.');return}
     if(ev>=d4v/2){setError(`e doit être inférieur à d₄/2 (${(d4v/2).toFixed(4)} mm).`);return}
-    setPoints(generateProfile(d4v,ev,pv,0.01))
-    setResult(computeCotes(d4v,ev,pv))
+    if(pasv<=0||pasv>1){setError('Le pas angulaire doit être entre 0.001° et 1°.');return}
+    const pts = generateProfile(d4v,ev,pv,pasv)
+    setPoints(pts)
+    setResult(computeCotes(d4v,ev,pv,pasv))
   }
 
   function handleDownload() {
@@ -151,10 +153,11 @@ export default function App() {
               {label:'Ø d₄ — Diamètre nominal (mm)',val:d4,set:setD4,ph:'ex : 18.85'},
               {label:'e — Excentricité (mm)',val:e,set:setE,ph:'ex : 0.425'},
               {label:'L — Profondeur / longueur (mm)',val:prof,set:setProf,ph:'ex : 40'},
-            ].map(({label,val,set,ph})=>(
+              {label:'Pas angulaire (°)',val:pas,set:setPas,ph:'ex : 0.01',step:'0.001'},
+            ].map(({label,val,set,ph,step})=>(
               <div key={label}>
                 <label style={S.label}>{label}</label>
-                <input style={S.input} type="number" step="0.001" placeholder={ph} value={val}
+                <input style={S.input} type="number" step={step||'0.001'} placeholder={ph} value={val}
                   onChange={ev=>set(ev.target.value)} onFocus={fi} onBlur={bi}/>
               </div>
             ))}
@@ -182,7 +185,7 @@ export default function App() {
                 {label:'Ø Mini calculé',value:result.dMini,unit:'mm',accent:false},
                 {label:'Ø Maxi calculé',value:result.dMaxi,unit:'mm',accent:false},
                 {label:'Rm — Rayon moyen',value:result.Rm,unit:'mm',accent:true},
-                {label:'Pas angulaire',value:'0.01',unit:'° — '+result.nbPoints.toLocaleString('fr')+' pts',accent:false},
+                {label:'Pas angulaire',value:pas,unit:`° — ${result.nbPoints.toLocaleString('fr')} pts`,accent:false},
               ].map(({label,value,unit,accent})=>(
                 <div key={label} style={S.resultBox(accent)}>
                   <div style={S.resultLabel(accent)}>{label}</div>
@@ -195,7 +198,7 @@ export default function App() {
               <div style={S.cardTitle}>Visualisation du profil — Vue de face</div>
               <canvas ref={canvasRef} width={720} height={480} style={{width:'100%',borderRadius:4,background:'#fafaf8',display:'block'}}/>
               <div style={{fontSize:10,color:'#ccc',fontFamily:"'DM Mono',monospace",marginTop:12,textAlign:'center'}}>
-                Profil calculé avec incrément α = 0.01° · Norme DIN 32712 : 2012-03 · P{lobes}C
+                Profil calculé avec incrément α = {pas}° · Norme DIN 32712 : 2012-03 · P{lobes}C
               </div>
             </div>
             <div style={S.card}>
@@ -204,7 +207,7 @@ export default function App() {
                 <div>x(α) = [Rm − e·cos({lobes}α)]·cos(α) − {lobes}·e·sin({lobes}α)·sin(α)</div>
                 <div>y(α) = [Rm − e·cos({lobes}α)]·sin(α) + {lobes}·e·sin({lobes}α)·cos(α)</div>
                 <div style={{marginTop:10,color:'#bbb',fontSize:11}}>
-                  Rm = d₄/2 = {result.Rm} mm &nbsp;|&nbsp; e = {e} mm &nbsp;|&nbsp; P = {lobes} lobes &nbsp;|&nbsp; Profondeur = {prof} mm
+                  Rm = d₄/2 = {result.Rm} mm &nbsp;|&nbsp; e = {e} mm &nbsp;|&nbsp; P = {lobes} lobes &nbsp;|&nbsp; Profondeur = {prof} mm &nbsp;|&nbsp; Pas = {pas}°
                 </div>
               </div>
             </div>
